@@ -54,6 +54,8 @@ fn test_complex_fixture() {
 #[test]
 fn test_complex_round_trip() {
     let content = std::fs::read_to_string(fixture_path("complex.hosts")).unwrap();
+    // Normalise CRLF so the test passes even if Git converted line endings
+    let content = content.replace('\r', "");
     let hosts = parser::parse_hosts_file(&content, fixture_path("complex.hosts"));
     let output = parser::serialize_hosts_file(&hosts);
     assert_eq!(output, content);
@@ -62,6 +64,7 @@ fn test_complex_round_trip() {
 #[test]
 fn test_simple_round_trip() {
     let content = std::fs::read_to_string(fixture_path("simple.hosts")).unwrap();
+    let content = content.replace('\r', "");
     let hosts = parser::parse_hosts_file(&content, fixture_path("simple.hosts"));
     let output = parser::serialize_hosts_file(&hosts);
     assert_eq!(output, content);

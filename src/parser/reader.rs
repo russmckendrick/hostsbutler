@@ -7,7 +7,15 @@ use sha2::{Digest, Sha256};
 use crate::model::{EntryStatus, HostEntry, HostsFile, Line};
 
 pub fn parse_hosts_file(content: &str, path: PathBuf) -> HostsFile {
-    let checksum = compute_checksum(content);
+    // Normalise CRLF to LF for consistent internal handling.
+    // Windows platform code converts back to CRLF on write.
+    let content = if content.contains('\r') {
+        std::borrow::Cow::Owned(content.replace('\r', ""))
+    } else {
+        std::borrow::Cow::Borrowed(content)
+    };
+
+    let checksum = compute_checksum(&content);
     let mut lines = Vec::new();
     let mut next_id: usize = 0;
     let mut current_group: Option<String> = None;

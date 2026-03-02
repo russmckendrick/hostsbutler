@@ -1,0 +1,3 @@
+# Ensure test fixtures always use LF line endings, even on Windows.
+# This is critical for round-trip parser tests that compare raw file content.
+tests/fixtures/*.hosts text eol=lf
