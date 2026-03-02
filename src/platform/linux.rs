@@ -18,7 +18,7 @@ impl Platform for LinuxPlatform {
     }
 
     fn can_write(&self) -> bool {
-        unsafe { libc::geteuid() == 0 }
+        libc::geteuid() == 0
     }
 
     fn read_hosts(&self) -> Result<String, PlatformError> {
