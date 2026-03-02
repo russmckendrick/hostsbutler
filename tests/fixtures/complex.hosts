@@ -1,0 +1,27 @@
+# /etc/hosts
+# Host Database
+#
+# localhost is used to configure the loopback interface
+
+127.0.0.1	localhost
+::1	localhost
+255.255.255.255	broadcasthost
+
+## [Development]
+192.168.1.10	dev.local api.dev.local # development servers
+192.168.1.11	db.dev.local
+# 192.168.1.12	staging.dev.local
+
+## [Production]
+10.0.0.1	prod.example.com
+10.0.0.2	api.prod.example.com # production API
+
+# --- Blocked ---
+0.0.0.0	ads.example.com
+0.0.0.0	tracker.bad.com
+0.0.0.0	malware.site.com
+# 0.0.0.0	maybe-block.com
+
+## [Work]
+172.16.0.50	jira.company.com
+172.16.0.51	confluence.company.com wiki.company.com

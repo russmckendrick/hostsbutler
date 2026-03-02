@@ -1,0 +1,11 @@
+pub mod app;
+pub mod backup;
+pub mod commands;
+pub mod dns;
+pub mod event;
+pub mod model;
+pub mod parser;
+pub mod platform;
+pub mod tui;
+pub mod ui;
+pub mod validation;

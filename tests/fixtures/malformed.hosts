@@ -1,0 +1,10 @@
+# Malformed hosts file for testing edge cases
+this-is-not-a-valid-line
+
+127.0.0.1	valid-host
+999.999.999.999	invalid-ip-line
+127.0.0.1
+#127.0.0.1 no-space-after-hash
+# 127.0.0.1 disabled-entry
+	leading-tab-only
+127.0.0.1	host-with-many-spaces        extra-spaces
