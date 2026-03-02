@@ -2,6 +2,8 @@
 
 A cross-platform TUI application for managing the system hosts file, built in Rust.
 
+<img src="logo.svg" width="100">
+
 ```
 +-------------------------------------------------------------------+
 | HostsButler v0.1.0                          /etc/hosts  [Modified] |
