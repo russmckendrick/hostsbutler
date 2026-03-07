@@ -75,6 +75,11 @@ fn main() -> Result<()> {
             }
             AppEvent::Resize(_, _) => {}
         }
+
+        if app.needs_full_redraw {
+            terminal.clear()?;
+            app.needs_full_redraw = false;
+        }
     }
 
     tui::restore()?;

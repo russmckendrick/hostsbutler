@@ -1,7 +1,7 @@
 use ratatui::{
     Frame,
     text::{Line, Span},
-    widgets::Paragraph,
+    widgets::{Block, Paragraph},
 };
 
 use crate::app::{App, AppMode};
@@ -10,6 +10,8 @@ use crate::ui::layout::AppLayout;
 use crate::ui::theme::Theme;
 
 pub fn render(f: &mut Frame, app: &App) {
+    f.render_widget(Block::default().style(Theme::app()), f.area());
+
     let layout = AppLayout::new(f.area());
 
     // Title bar
@@ -45,23 +47,46 @@ pub fn render(f: &mut Frame, app: &App) {
 fn render_title_bar(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let dirty = if app.hosts.dirty { " [Modified]" } else { "" };
     let path = app.hosts.path.display().to_string();
+    let title = format!(" HostsButler v{}", env!("CARGO_PKG_VERSION"));
+    let right = truncate_left(
+        &format!("{}{}", path, dirty),
+        area.width.saturating_sub(title.len() as u16 + 1) as usize,
+    );
 
     let line = Line::from(vec![
-        Span::styled(" HostsButler v0.1.0", Theme::header()),
+        Span::styled(title.clone(), Theme::header()),
         Span::styled(
             format!(
                 "{}{}",
                 " ".repeat(
                     area.width
-                        .saturating_sub(20 + path.len() as u16 + dirty.len() as u16)
+                        .saturating_sub(title.len() as u16 + right.len() as u16)
                         as usize
                 ),
                 ""
             ),
             Theme::header(),
         ),
-        Span::styled(format!("{}{}  ", path, dirty), Theme::header()),
+        Span::styled(right, Theme::header()),
     ]);
 
     f.render_widget(Paragraph::new(line).style(Theme::header()), area);
+}
+
+fn truncate_left(text: &str, max_width: usize) -> String {
+    if max_width == 0 {
+        return String::new();
+    }
+
+    if text.len() <= max_width {
+        return text.to_string();
+    }
+
+    if max_width <= 3 {
+        return ".".repeat(max_width);
+    }
+
+    let keep = max_width - 3;
+    let suffix = &text[text.len() - keep..];
+    format!("...{}", suffix)
 }

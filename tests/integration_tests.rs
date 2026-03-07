@@ -49,6 +49,7 @@ fn test_add_edit_delete_cycle() {
         id,
         "10.0.0.1",
         &["updated.local".to_string()],
+        Some("Updated Group"),
         Some("updated comment"),
         true,
     )
@@ -57,6 +58,12 @@ fn test_add_edit_delete_cycle() {
     let entry = hosts.find_entry(id).unwrap();
     assert_eq!(entry.ip.to_string(), "10.0.0.1");
     assert_eq!(entry.hostnames, vec!["updated.local"]);
+    assert_eq!(entry.group.as_deref(), Some("Updated Group"));
+    assert_eq!(entry.inline_comment.as_deref(), Some("updated comment"));
+
+    let serialized = hosts.to_string();
+    assert!(serialized.contains("## [Updated Group]"));
+    assert!(serialized.contains("10.0.0.1\tupdated.local # updated comment"));
 
     // Delete
     entry_cmds::delete_entry(&mut hosts, id).unwrap();

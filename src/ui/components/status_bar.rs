@@ -21,16 +21,16 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         }
         _ => {
             let shortcuts = match app.mode {
-                AppMode::Normal => {
-                    vec![
-                        ("[/]", "Search"),
-                        ("[a]", "Add"),
-                        ("[e]", "Edit"),
-                        ("[d]", "Delete"),
-                        ("[Space]", "Toggle"),
-                        ("[?]", "Help"),
-                    ]
-                }
+                AppMode::Normal => vec![
+                    ("[/]", "Search"),
+                    ("[Tab]", "Panels"),
+                    ("[a]", "Add"),
+                    ("[Enter]", "Edit"),
+                    ("[Space]", "Toggle"),
+                    ("[Ctrl+S]", "Save"),
+                    ("[q]", "Quit"),
+                    ("[?]", "Help"),
+                ],
                 AppMode::BackupManager => {
                     vec![
                         ("[r]", "Restore"),
@@ -39,9 +39,19 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                         ("[Esc]", "Close"),
                     ]
                 }
-                _ => {
-                    vec![("[Esc]", "Cancel"), ("[Enter]", "Confirm")]
+                AppMode::ConfirmDelete(_) => {
+                    vec![("[Enter/y]", "Delete"), ("[Esc/n]", "Cancel")]
                 }
+                AppMode::ConfirmSave => vec![
+                    ("[Enter/y]", "Save & quit"),
+                    ("[n]", "Quit without saving"),
+                    ("[Esc]", "Cancel"),
+                ],
+                AppMode::Help => vec![("[Esc/?/q]", "Close")],
+                AppMode::AddEntry | AppMode::EditEntry(_) => {
+                    vec![("[Tab]", "Next"), ("[Enter]", "Save"), ("[Esc]", "Cancel")]
+                }
+                _ => vec![("[Esc]", "Cancel"), ("[Enter]", "Confirm")],
             };
 
             let spans: Vec<Span> = shortcuts

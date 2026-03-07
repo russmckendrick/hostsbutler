@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use anyhow::Context;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::backup::BackupManager;
@@ -93,6 +94,7 @@ pub struct App {
     pub mode: AppMode,
     pub focus: FocusPanel,
     pub running: bool,
+    pub needs_full_redraw: bool,
     pub selected_entry: usize,
     pub selected_group: usize,
     pub search_query: String,
@@ -112,6 +114,10 @@ pub struct App {
 impl App {
     pub fn new(hosts: HostsFile) -> Self {
         let platform = detect_platform();
+        Self::new_with_platform(hosts, platform)
+    }
+
+    pub fn new_with_platform(hosts: HostsFile, platform: Box<dyn Platform>) -> Self {
         let backup_manager = BackupManager::new(&platform.config_dir());
 
         let mut app = Self {
@@ -119,6 +125,7 @@ impl App {
             mode: AppMode::Normal,
             focus: FocusPanel::Table,
             running: true,
+            needs_full_redraw: false,
             selected_entry: 0,
             selected_group: 0,
             search_query: String::new(),
@@ -223,7 +230,10 @@ impl App {
     fn handle_normal_key(&mut self, key: KeyEvent) {
         match (key.modifiers, key.code) {
             (KeyModifiers::CONTROL, KeyCode::Char('c')) => self.running = false,
-            (KeyModifiers::CONTROL, KeyCode::Char('s')) => self.save_file(),
+            (KeyModifiers::CONTROL, KeyCode::Char('s')) => {
+                self.save_file();
+            }
+            (KeyModifiers::CONTROL, KeyCode::Char('q')) => self.request_quit(),
             (KeyModifiers::CONTROL, KeyCode::Char('z')) => {
                 if self.hosts.undo() {
                     self.refresh_groups();
@@ -239,13 +249,7 @@ impl App {
                 }
             }
             (KeyModifiers::CONTROL, KeyCode::Char('r')) => self.reload_file(),
-            (_, KeyCode::Char('q')) => {
-                if self.hosts.dirty {
-                    self.mode = AppMode::ConfirmSave;
-                } else {
-                    self.running = false;
-                }
-            }
+            (_, KeyCode::Char('q')) => self.request_quit(),
             (_, KeyCode::Char('j')) | (_, KeyCode::Down) => self.move_selection_down(),
             (_, KeyCode::Char('k')) | (_, KeyCode::Up) => self.move_selection_up(),
             (_, KeyCode::Char('g')) | (_, KeyCode::Home) => {
@@ -439,6 +443,7 @@ impl App {
                     id,
                     &self.form.ip,
                     &hostnames,
+                    group,
                     comment,
                     self.form.enabled,
                 ) {
@@ -478,9 +483,10 @@ impl App {
 
     fn handle_confirm_save_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Char('y') => {
-                self.save_file();
-                self.running = false;
+            KeyCode::Char('y') | KeyCode::Enter => {
+                if self.save_file() {
+                    self.running = false;
+                }
             }
             KeyCode::Char('n') => {
                 self.running = false;
@@ -587,7 +593,15 @@ impl App {
         }
     }
 
-    fn save_file(&mut self) {
+    fn request_quit(&mut self) {
+        if self.hosts.dirty {
+            self.mode = AppMode::ConfirmSave;
+        } else {
+            self.running = false;
+        }
+    }
+
+    fn save_file(&mut self) -> bool {
         // Auto-backup before save
         if let Err(e) = backup_cmds::create_backup(
             &self.backup_manager,
@@ -603,16 +617,36 @@ impl App {
             parser::serialize_hosts_file(&self.hosts)
         };
 
-        match self.platform.write_hosts(&content) {
+        match self.write_hosts_content(&content) {
             Ok(()) => {
                 self.hosts.dirty = false;
                 self.hosts.clear_undo_history();
                 self.show_toast("File saved".to_string(), false);
+                true
             }
             Err(e) => {
                 self.show_toast(format!("Save failed: {}", e), true);
+                false
             }
         }
+    }
+
+    fn write_hosts_content(&mut self, content: &str) -> anyhow::Result<()> {
+        if self.hosts.path == self.platform.hosts_path() {
+            if self.platform.can_write() {
+                self.platform.write_hosts(content)?;
+            } else {
+                let result = crate::tui::suspend(|| self.platform.write_hosts(content));
+                self.needs_full_redraw = true;
+                result.context("privileged write failed")?;
+            }
+
+            return Ok(());
+        }
+
+        std::fs::write(&self.hosts.path, content)
+            .with_context(|| format!("failed to write {}", self.hosts.path.display()))?;
+        Ok(())
     }
 
     fn reload_file(&mut self) {
@@ -628,5 +662,149 @@ impl App {
                 self.show_toast(format!("Reload failed: {}", e), true);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::IpAddr;
+    use std::path::PathBuf;
+    use std::sync::Mutex;
+
+    use crossterm::event::KeyCode;
+
+    use super::*;
+    use crate::model::{HostEntry, Line};
+    use crate::platform::PlatformError;
+
+    struct MockPlatform {
+        hosts_path: PathBuf,
+        config_dir: PathBuf,
+        can_write: bool,
+        write_error: Option<String>,
+        writes: Mutex<Vec<String>>,
+    }
+
+    impl Platform for MockPlatform {
+        fn hosts_path(&self) -> PathBuf {
+            self.hosts_path.clone()
+        }
+
+        fn config_dir(&self) -> PathBuf {
+            self.config_dir.clone()
+        }
+
+        fn can_write(&self) -> bool {
+            self.can_write
+        }
+
+        fn write_hosts(&self, content: &str) -> std::result::Result<(), PlatformError> {
+            self.writes.lock().unwrap().push(content.to_string());
+            if let Some(error) = &self.write_error {
+                Err(PlatformError::PermissionDenied(error.clone()))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn read_hosts(&self) -> std::result::Result<String, PlatformError> {
+            Ok("127.0.0.1 localhost\n".to_string())
+        }
+
+        fn flush_dns(&self) -> std::result::Result<(), PlatformError> {
+            Ok(())
+        }
+
+        fn name(&self) -> &str {
+            "mock"
+        }
+
+        fn uses_crlf(&self) -> bool {
+            false
+        }
+    }
+
+    fn sample_hosts(path: PathBuf) -> HostsFile {
+        let entry = HostEntry::new(
+            0,
+            "127.0.0.1".parse::<IpAddr>().unwrap(),
+            vec!["localhost".to_string()],
+        );
+        HostsFile::new(path, vec![Line::Entry(entry)], "checksum".to_string())
+    }
+
+    #[test]
+    fn confirm_save_does_not_exit_when_save_fails() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = PathBuf::from("/etc/hosts");
+        let platform = Box::new(MockPlatform {
+            hosts_path: path.clone(),
+            config_dir: temp.path().to_path_buf(),
+            can_write: true,
+            write_error: Some("denied".to_string()),
+            writes: Mutex::new(Vec::new()),
+        });
+
+        let mut app = App::new_with_platform(sample_hosts(path), platform);
+        app.hosts.dirty = true;
+        app.mode = AppMode::ConfirmSave;
+
+        app.handle_key(KeyCode::Enter.into());
+
+        assert!(app.running);
+        assert_eq!(app.mode, AppMode::ConfirmSave);
+        assert!(app.hosts.dirty);
+        assert!(
+            app.toast
+                .as_ref()
+                .is_some_and(|toast| toast.message.contains("Save failed"))
+        );
+    }
+
+    #[test]
+    fn confirm_save_exits_after_successful_save() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = PathBuf::from("/etc/hosts");
+        let platform = Box::new(MockPlatform {
+            hosts_path: path.clone(),
+            config_dir: temp.path().to_path_buf(),
+            can_write: true,
+            write_error: None,
+            writes: Mutex::new(Vec::new()),
+        });
+
+        let mut app = App::new_with_platform(sample_hosts(path), platform);
+        app.hosts.dirty = true;
+        app.mode = AppMode::ConfirmSave;
+
+        app.handle_key(KeyCode::Char('y').into());
+
+        assert!(!app.running);
+        assert_eq!(app.mode, AppMode::ConfirmSave);
+        assert!(!app.hosts.dirty);
+    }
+
+    #[test]
+    fn save_uses_overridden_hosts_path_directly() {
+        let temp = tempfile::tempdir().unwrap();
+        let custom_hosts = temp.path().join("hosts");
+        let platform = Box::new(MockPlatform {
+            hosts_path: PathBuf::from("/etc/hosts"),
+            config_dir: temp.path().to_path_buf(),
+            can_write: true,
+            write_error: None,
+            writes: Mutex::new(Vec::new()),
+        });
+
+        let mut app = App::new_with_platform(sample_hosts(custom_hosts.clone()), platform);
+        app.hosts.dirty = true;
+
+        assert!(app.save_file());
+        assert!(custom_hosts.exists());
+        assert!(
+            std::fs::read_to_string(&custom_hosts)
+                .unwrap()
+                .contains("127.0.0.1")
+        );
     }
 }

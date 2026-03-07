@@ -22,6 +22,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
+        .style(Theme::modal_bg())
         .border_style(Theme::border_focused());
 
     let inner = block.inner(popup);

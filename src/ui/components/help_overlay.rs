@@ -15,6 +15,7 @@ pub fn render(f: &mut Frame, area: Rect) {
     let block = Block::default()
         .title(" Keyboard Shortcuts ")
         .borders(Borders::ALL)
+        .style(Theme::modal_bg())
         .border_style(Theme::border_focused());
 
     let shortcuts = vec![
@@ -48,6 +49,7 @@ pub fn render(f: &mut Frame, area: Rect) {
             "File Operations",
             vec![
                 ("Ctrl+S", "Save file"),
+                ("Ctrl+Q / q", "Quit the application"),
                 ("Ctrl+R", "Reload from disk"),
                 ("Ctrl+Z", "Undo"),
                 ("Ctrl+Y", "Redo"),
@@ -59,7 +61,7 @@ pub fn render(f: &mut Frame, area: Rect) {
                 ("b", "Open backup manager"),
                 ("t", "Test DNS resolution"),
                 ("?", "Show/hide this help"),
-                ("q", "Quit"),
+                ("Enter", "Confirm dialogs and edit entries"),
             ],
         ),
     ];

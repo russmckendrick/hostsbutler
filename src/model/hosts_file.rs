@@ -90,38 +90,7 @@ impl HostsFile {
         entry.id = id;
         entry.group = group.map(String::from);
         entry.raw = String::new(); // Force re-serialization
-
-        if let Some(group_name) = group {
-            // Find last entry in the group and insert after it
-            let mut insert_pos = None;
-            for (i, line) in self.lines.iter().enumerate().rev() {
-                match line {
-                    Line::Entry(e) if e.group.as_deref() == Some(group_name) => {
-                        insert_pos = Some(i + 1);
-                        break;
-                    }
-                    Line::GroupHeader { group_name: gn, .. } if gn == group_name => {
-                        insert_pos = Some(i + 1);
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-
-            if let Some(pos) = insert_pos {
-                self.lines.insert(pos, Line::Entry(entry));
-            } else {
-                // Group doesn't exist yet - create it
-                self.lines.push(Line::Blank(String::new()));
-                self.lines.push(Line::GroupHeader {
-                    raw: format!("## [{}]", group_name),
-                    group_name: group_name.to_string(),
-                });
-                self.lines.push(Line::Entry(entry));
-            }
-        } else {
-            self.lines.push(Line::Entry(entry));
-        }
+        self.insert_entry(entry, group);
 
         self.dirty = true;
         id
@@ -147,21 +116,39 @@ impl HostsFile {
         false
     }
 
-    pub fn update_entry(&mut self, id: usize, updated: HostEntry) -> bool {
+    pub fn update_entry(&mut self, id: usize, mut updated: HostEntry, group: Option<&str>) -> bool {
         self.save_undo_state();
-        for line in &mut self.lines {
-            if let Line::Entry(entry) = line
-                && entry.id == id
-            {
-                let old_id = entry.id;
+        let Some(index) = self
+            .lines
+            .iter()
+            .position(|line| matches!(line, Line::Entry(entry) if entry.id == id))
+        else {
+            return false;
+        };
+
+        let existing_group = match &self.lines[index] {
+            Line::Entry(entry) => entry.group.clone(),
+            _ => return false,
+        };
+
+        updated.id = id;
+        updated.group = group.map(String::from);
+        updated.raw = String::new(); // Force re-serialization
+
+        if existing_group.as_deref() == group {
+            if let Some(entry) = self.lines[index].as_entry_mut() {
                 *entry = updated;
-                entry.id = old_id;
-                entry.raw = String::new(); // Force re-serialization
                 self.dirty = true;
                 return true;
             }
+
+            return false;
         }
-        false
+
+        self.lines.remove(index);
+        self.insert_entry(updated, group);
+        self.dirty = true;
+        true
     }
 
     pub fn remove_entry(&mut self, id: usize) -> bool {
@@ -225,6 +212,38 @@ impl HostsFile {
     pub fn clear_undo_history(&mut self) {
         self.undo_stack.clear();
         self.redo_stack.clear();
+    }
+
+    fn insert_entry(&mut self, entry: HostEntry, group: Option<&str>) {
+        if let Some(group_name) = group {
+            let mut insert_pos = None;
+            for (i, line) in self.lines.iter().enumerate().rev() {
+                match line {
+                    Line::Entry(e) if e.group.as_deref() == Some(group_name) => {
+                        insert_pos = Some(i + 1);
+                        break;
+                    }
+                    Line::GroupHeader { group_name: gn, .. } if gn == group_name => {
+                        insert_pos = Some(i + 1);
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+
+            if let Some(pos) = insert_pos {
+                self.lines.insert(pos, Line::Entry(entry));
+            } else {
+                self.lines.push(Line::Blank(String::new()));
+                self.lines.push(Line::GroupHeader {
+                    raw: format!("## [{}]", group_name),
+                    group_name: group_name.to_string(),
+                });
+                self.lines.push(Line::Entry(entry));
+            }
+        } else {
+            self.lines.push(Line::Entry(entry));
+        }
     }
 }
 

@@ -55,6 +55,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         Block::default()
             .borders(Borders::ALL)
             .title(" Groups ")
+            .style(Theme::surface())
             .border_style(border_style),
     );
 

@@ -16,6 +16,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(" Backup Manager ")
         .borders(Borders::ALL)
+        .style(Theme::modal_bg())
         .border_style(Theme::border_focused());
 
     if app.backup_list.is_empty() {

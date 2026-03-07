@@ -40,6 +40,7 @@ pub fn update_entry(
     id: usize,
     ip_str: &str,
     hostnames: &[String],
+    group: Option<&str>,
     comment: Option<&str>,
     enabled: bool,
 ) -> Result<()> {
@@ -54,7 +55,7 @@ pub fn update_entry(
         };
     }
 
-    if hosts.update_entry(id, updated) {
+    if hosts.update_entry(id, updated, group) {
         Ok(())
     } else {
         anyhow::bail!("Entry with id {} not found", id)
