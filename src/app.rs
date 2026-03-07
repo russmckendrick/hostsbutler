@@ -304,12 +304,7 @@ impl App {
             (_, KeyCode::Char('/')) => {
                 self.mode = AppMode::Search;
             }
-            (_, KeyCode::Char('b')) => {
-                self.backup_list =
-                    backup_cmds::list_backups(&self.backup_manager).unwrap_or_default();
-                self.selected_backup = 0;
-                self.mode = AppMode::BackupManager;
-            }
+            (_, KeyCode::Char('b')) => self.open_backup_manager(),
             (_, KeyCode::Char('t')) => {
                 if let Some(id) = self.selected_entry_id()
                     && let Some(entry) = self.hosts.find_entry(id)
@@ -514,17 +509,13 @@ impl App {
             KeyCode::Enter | KeyCode::Char('r') => {
                 if let Some(backup) = self.backup_list.get(self.selected_backup) {
                     let filename = backup.filename.clone();
-                    let path = self.hosts.path.clone();
-                    match backup_cmds::restore_backup(&self.backup_manager, &filename, path) {
-                        Ok(restored) => {
-                            self.hosts = restored;
-                            self.refresh_groups();
-                            self.refresh_filtered_entries();
-                            self.show_toast("Backup restored".to_string(), false);
+                    match self.rollback_to_backup(&filename) {
+                        Ok(()) => {
+                            self.show_toast("Rolled back to backup".to_string(), false);
                             self.mode = AppMode::Normal;
                         }
                         Err(e) => {
-                            self.show_toast(format!("Restore failed: {}", e), true);
+                            self.show_toast(format!("Rollback failed: {}", e), true);
                         }
                     }
                 }
@@ -629,6 +620,42 @@ impl App {
                 false
             }
         }
+    }
+
+    fn open_backup_manager(&mut self) {
+        self.backup_list = backup_cmds::list_backups(&self.backup_manager).unwrap_or_default();
+        self.selected_backup = 0;
+        self.mode = AppMode::BackupManager;
+    }
+
+    fn rollback_to_backup(&mut self, filename: &str) -> anyhow::Result<()> {
+        backup_cmds::create_backup(
+            &self.backup_manager,
+            &self.hosts,
+            Some("Auto-backup before rollback"),
+        )
+        .context("failed to create safety backup")?;
+
+        let path = self.hosts.path.clone();
+        let restored = backup_cmds::restore_backup(&self.backup_manager, filename, path)?;
+        let content = if self.platform.uses_crlf() {
+            crate::parser::writer::serialize_hosts_file_crlf(&restored)
+        } else {
+            parser::serialize_hosts_file(&restored)
+        };
+
+        self.write_hosts_content(&content)?;
+        self.hosts = restored;
+        self.hosts.dirty = false;
+        self.hosts.clear_undo_history();
+        self.refresh_groups();
+        self.refresh_filtered_entries();
+        self.backup_list = backup_cmds::list_backups(&self.backup_manager).unwrap_or_default();
+        self.selected_backup = self
+            .selected_backup
+            .min(self.backup_list.len().saturating_sub(1));
+
+        Ok(())
     }
 
     fn write_hosts_content(&mut self, content: &str) -> anyhow::Result<()> {
@@ -805,6 +832,44 @@ mod tests {
             std::fs::read_to_string(&custom_hosts)
                 .unwrap()
                 .contains("127.0.0.1")
+        );
+    }
+
+    #[test]
+    fn backup_manager_rolls_back_selected_backup_to_disk() {
+        let temp = tempfile::tempdir().unwrap();
+        let custom_hosts = temp.path().join("hosts");
+        let platform = Box::new(MockPlatform {
+            hosts_path: PathBuf::from("/etc/hosts"),
+            config_dir: temp.path().to_path_buf(),
+            can_write: true,
+            write_error: None,
+            writes: Mutex::new(Vec::new()),
+        });
+
+        let mut app = App::new_with_platform(sample_hosts(custom_hosts.clone()), platform);
+        app.backup_manager
+            .create_backup("10.0.0.1\trollback.test\n", Some("Known good"))
+            .unwrap();
+
+        app.handle_key(KeyCode::Char('b').into());
+        app.handle_key(KeyCode::Enter.into());
+
+        assert_eq!(app.mode, AppMode::Normal);
+        assert!(!app.hosts.dirty);
+        assert_eq!(app.hosts.entries()[0].ip.to_string(), "10.0.0.1");
+        assert_eq!(app.hosts.entries()[0].hostnames, vec!["rollback.test"]);
+        assert_eq!(
+            std::fs::read_to_string(&custom_hosts).unwrap(),
+            "10.0.0.1\trollback.test\n"
+        );
+
+        let backups = app.backup_manager.list_backups().unwrap();
+        assert_eq!(backups.len(), 2);
+        assert!(
+            backups
+                .iter()
+                .any(|backup| backup.description.as_deref() == Some("Auto-backup before rollback"))
         );
     }
 }

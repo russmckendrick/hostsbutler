@@ -1,8 +1,8 @@
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 
 use crate::app::App;
@@ -65,6 +65,24 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let list = List::new(items).block(block);
-    f.render_widget(list, popup);
+    let inner = block.inner(popup);
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+
+    f.render_widget(block, popup);
+    let list = List::new(items);
+    f.render_widget(list, chunks[0]);
+    f.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled("  [Enter/r] ", Theme::search_highlight()),
+            Span::styled("roll back", Theme::dim()),
+            Span::styled("  [c] ", Theme::search_highlight()),
+            Span::styled("create", Theme::dim()),
+            Span::styled("  [d] ", Theme::search_highlight()),
+            Span::styled("delete", Theme::dim()),
+        ])),
+        chunks[1],
+    );
 }

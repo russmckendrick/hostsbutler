@@ -33,7 +33,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 ],
                 AppMode::BackupManager => {
                     vec![
-                        ("[r]", "Restore"),
+                        ("[Enter/r]", "Roll back"),
                         ("[c]", "Create"),
                         ("[d]", "Delete"),
                         ("[Esc]", "Close"),

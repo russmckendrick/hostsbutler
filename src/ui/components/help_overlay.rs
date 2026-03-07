@@ -58,7 +58,7 @@ pub fn render(f: &mut Frame, area: Rect) {
         (
             "Other",
             vec![
-                ("b", "Open backup manager"),
+                ("b", "Open backup manager / roll back"),
                 ("t", "Test DNS resolution"),
                 ("?", "Show/hide this help"),
                 ("Enter", "Confirm dialogs and edit entries"),

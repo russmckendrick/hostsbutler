@@ -97,3 +97,17 @@ mod libc {
         pub safe fn geteuid() -> u32;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{LinuxPlatform, Platform};
+
+    #[test]
+    fn config_dir_uses_xdg_style_path() {
+        let expected = dirs::config_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+            .join("hostsbutler");
+
+        assert_eq!(LinuxPlatform.config_dir(), expected);
+    }
+}

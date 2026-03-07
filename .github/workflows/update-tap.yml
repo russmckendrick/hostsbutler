@@ -1,0 +1,92 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+          fi
+
+          if [ -z "${VERSION}" ] || [ "${VERSION}" = "null" ]; then
+            echo "Unable to determine release version" >&2
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Using version: ${VERSION}"
+
+      - name: Download checksums
+        run: |
+          mkdir -p build
+          VERSION=${{ steps.version.outputs.version }}
+          curl -L --fail -o build/hostsbutler-darwin-amd64.sha256 https://github.com/${{ github.repository }}/releases/download/${VERSION}/hostsbutler-darwin-amd64.sha256
+          curl -L --fail -o build/hostsbutler-darwin-arm64.sha256 https://github.com/${{ github.repository }}/releases/download/${VERSION}/hostsbutler-darwin-arm64.sha256
+
+      - name: Clone homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Formula
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          AMD64_SHA=$(cut -d' ' -f1 build/hostsbutler-darwin-amd64.sha256)
+          ARM64_SHA=$(cut -d' ' -f1 build/hostsbutler-darwin-arm64.sha256)
+
+          cd homebrew-tap
+          mkdir -p Formula
+
+          cat > Formula/hostsbutler.rb << EOF
+          class Hostsbutler < Formula
+            desc "A cross-platform TUI application for managing the system hosts file"
+            homepage "https://github.com/${{ github.repository }}"
+            version "${VERSION#v}"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/${{ github.repository }}/releases/download/${VERSION}/hostsbutler-darwin-arm64"
+                sha256 "${ARM64_SHA}"
+              else
+                url "https://github.com/${{ github.repository }}/releases/download/${VERSION}/hostsbutler-darwin-amd64"
+                sha256 "${AMD64_SHA}"
+              end
+            end
+
+            def install
+              if Hardware::CPU.arm?
+                bin.install "hostsbutler-darwin-arm64" => "hostsbutler"
+              else
+                bin.install "hostsbutler-darwin-amd64" => "hostsbutler"
+              end
+            end
+
+            test do
+              system "#{bin}/hostsbutler", "--version"
+            end
+          end
+          EOF
+
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add Formula/hostsbutler.rb
+
+          if git diff --cached --quiet; then
+            echo "Formula already up to date"
+            exit 0
+          fi
+
+          git commit -m "Update hostsbutler to ${VERSION}"
+          git push

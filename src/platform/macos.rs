@@ -12,8 +12,9 @@ impl Platform for MacOsPlatform {
     }
 
     fn config_dir(&self) -> PathBuf {
-        dirs::data_dir()
+        dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .join(".config")
             .join("hostsbutler")
     }
 
@@ -81,5 +82,20 @@ impl Platform for MacOsPlatform {
 mod libc {
     unsafe extern "C" {
         pub safe fn geteuid() -> u32;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MacOsPlatform, Platform};
+
+    #[test]
+    fn config_dir_uses_xdg_style_path() {
+        let expected = dirs::home_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+            .join(".config")
+            .join("hostsbutler");
+
+        assert_eq!(MacOsPlatform.config_dir(), expected);
     }
 }

@@ -34,6 +34,17 @@ fn test_backup_restore() {
 }
 
 #[test]
+fn test_backup_filenames_are_unique_for_rapid_creates() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let manager = BackupManager::new(&temp_dir.path().to_path_buf());
+
+    let first = manager.create_backup("first", None).unwrap();
+    let second = manager.create_backup("second", None).unwrap();
+
+    assert_ne!(first.filename, second.filename);
+}
+
+#[test]
 fn test_backup_delete() {
     let temp_dir = tempfile::tempdir().unwrap();
     let manager = BackupManager::new(&temp_dir.path().to_path_buf());
@@ -70,4 +81,33 @@ fn test_multiple_backups_ordered() {
     // Most recent first
     assert_eq!(backups[0].description.as_deref(), Some("Second"));
     assert_eq!(backups[1].description.as_deref(), Some("First"));
+}
+
+#[test]
+fn test_backup_rotation_keeps_latest_five() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let manager = BackupManager::new(&temp_dir.path().to_path_buf());
+
+    for index in 0..6 {
+        manager
+            .create_backup(
+                &format!("backup-{index}"),
+                Some(&format!("Backup {}", index + 1)),
+            )
+            .unwrap();
+
+        if index < 5 {
+            std::thread::sleep(std::time::Duration::from_millis(1100));
+        }
+    }
+
+    let backups = manager.list_backups().unwrap();
+    assert_eq!(backups.len(), 5);
+    assert!(
+        backups
+            .iter()
+            .all(|backup| backup.description.as_deref() != Some("Backup 1"))
+    );
+    assert_eq!(backups[0].description.as_deref(), Some("Backup 6"));
+    assert_eq!(backups[4].description.as_deref(), Some("Backup 2"));
 }

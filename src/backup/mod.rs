@@ -8,6 +8,8 @@ use thiserror::Error;
 
 use self::store::BackupMetadata;
 
+const DEFAULT_MAX_BACKUPS: usize = 5;
+
 #[derive(Debug, Error)]
 pub enum BackupError {
     #[error("I/O error: {0}")]
@@ -28,11 +30,12 @@ impl BackupManager {
         let backup_dir = config_dir.join("backups");
         Self {
             backup_dir,
-            max_backups: 20,
+            max_backups: DEFAULT_MAX_BACKUPS,
         }
     }
 
     pub fn ensure_dir(&self) -> Result<(), BackupError> {
+        migrate_legacy_backup_dir(&self.backup_dir)?;
         if !self.backup_dir.exists() {
             fs::create_dir_all(&self.backup_dir)?;
         }
@@ -47,7 +50,7 @@ impl BackupManager {
         self.ensure_dir()?;
 
         let now = Utc::now();
-        let filename = format!("hosts_{}.bak", now.format("%Y-%m-%d_%H-%M-%S"));
+        let filename = format!("hosts_{}.bak", now.format("%Y-%m-%d_%H-%M-%S_%f"));
         let backup_path = self.backup_dir.join(&filename);
 
         fs::write(&backup_path, content)?;
@@ -79,6 +82,7 @@ impl BackupManager {
             if path.extension().is_some_and(|e| e == "json")
                 && let Ok(content) = fs::read_to_string(&path)
                 && let Ok(meta) = serde_json::from_str::<BackupMetadata>(&content)
+                && self.backup_dir.join(&meta.filename).exists()
             {
                 backups.push(meta);
             }
@@ -128,4 +132,97 @@ fn compute_checksum(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+#[cfg(target_os = "macos")]
+fn migrate_legacy_backup_dir(backup_dir: &Path) -> Result<(), BackupError> {
+    if backup_dir != current_macos_backup_dir().as_path() {
+        return Ok(());
+    }
+
+    let Some(legacy_root) = dirs::data_dir() else {
+        return Ok(());
+    };
+    let legacy_backup_dir = legacy_root.join("hostsbutler").join("backups");
+
+    if legacy_backup_dir == backup_dir || backup_dir.exists() || !legacy_backup_dir.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = backup_dir.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::rename(legacy_backup_dir, backup_dir)?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn current_macos_backup_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .join(".config")
+        .join("hostsbutler")
+        .join("backups")
+}
+
+#[cfg(not(target_os = "macos"))]
+fn migrate_legacy_backup_dir(_backup_dir: &Path) -> Result<(), BackupError> {
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use chrono::Utc;
+
+    use super::{BackupManager, store::BackupMetadata};
+
+    #[test]
+    fn list_backups_skips_orphaned_metadata() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let manager = BackupManager::new(temp_dir.path());
+        manager.ensure_dir().unwrap();
+
+        let metadata = BackupMetadata {
+            filename: "missing.bak".to_string(),
+            created_at: Utc::now(),
+            description: Some("orphan".to_string()),
+            size_bytes: 12,
+            checksum: "checksum".to_string(),
+        };
+
+        let meta_path = temp_dir
+            .path()
+            .join("backups")
+            .join("missing.bak.meta.json");
+        fs::write(meta_path, serde_json::to_string_pretty(&metadata).unwrap()).unwrap();
+
+        let backups = manager.list_backups().unwrap();
+        assert!(backups.is_empty());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn migrate_legacy_backup_dir_is_noop_when_target_exists() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let backup_dir = temp_dir.path().join("backups");
+        fs::create_dir_all(&backup_dir).unwrap();
+
+        super::migrate_legacy_backup_dir(&backup_dir).unwrap();
+
+        assert!(backup_dir.exists());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn migrate_legacy_backup_dir_is_noop_for_missing_legacy_dir() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let backup_dir = temp_dir.path().join("backups");
+
+        super::migrate_legacy_backup_dir(&backup_dir).unwrap();
+
+        assert!(!backup_dir.exists());
+    }
 }
