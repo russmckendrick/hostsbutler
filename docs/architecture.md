@@ -61,7 +61,8 @@ The event loop runs at 250ms tick intervals:
 1. Auto-backup of the current hosts file content
 2. Serialise the `HostsFile` to string (CRLF on Windows, LF elsewhere)
 3. Platform-specific write with privilege escalation if needed
-4. Clear undo history and mark file as clean
+4. Best-effort DNS cache flush when writing the real system hosts file
+5. Clear undo history and mark file as clean
 
 ## Document Model
 

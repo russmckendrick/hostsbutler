@@ -233,7 +233,18 @@ The native hosts file format, identical to the source file for unmodified entrie
 
 ### JSON Import
 
-Entries from the JSON array are added to the current hosts file. Each entry receives a new session ID. Group assignments are preserved.
+Entries from the JSON array are added to the current hosts file. Each entry receives a new session ID. Group assignments are preserved. IP addresses and hostnames are validated before insertion.
+
+### CSV Import
+
+CSV imports use the same columns as CSV export:
+
+```csv
+ip,hostnames,enabled,group,comment
+127.0.0.1,localhost,true,,loopback
+```
+
+The `hostnames` column remains a single space-separated field. Empty `group` and `comment` fields are treated as missing values. IP addresses and hostnames are validated before insertion.
 
 ### Hosts File Import
 
@@ -246,5 +257,6 @@ On Windows, HostsButler:
 1. Converts CRLF (`\r\n`) to LF (`\n`) when reading
 2. Processes everything internally using LF
 3. Converts LF back to CRLF when writing
+4. Preserves a trailing newline when the source file had one
 
 This is transparent to the user. On macOS and Linux, LF is used throughout.

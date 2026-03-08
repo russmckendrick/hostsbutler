@@ -52,12 +52,12 @@ cargo test -- --nocapture
 | File | Coverage |
 |------|----------|
 | `src/parser/reader.rs` (inline) | Parser unit tests: single entries, disabled entries, comments, groups, IPv6, inline comments, blank lines, round-trip |
-| `src/parser/writer.rs` (inline) | Serialisation round-trip and CRLF conversion |
+| `src/parser/writer.rs` (inline) | Serialisation round-trip, CRLF conversion, trailing newline preservation |
 | `src/validation/mod.rs` (inline) | IP and hostname validation edge cases |
 | `tests/parser_tests.rs` | Fixture-based parser tests: simple, complex, malformed, round-trip fidelity |
 | `tests/validation_tests.rs` | Comprehensive IP/hostname validation: IPv4, IPv6, private ranges, RFC 1123 rules |
-| `tests/integration_tests.rs` | Full CRUD cycles, toggle, undo/redo, duplicate detection, search, import/export, validation rejection |
-| `tests/backup_tests.rs` | Backup create, list, restore, delete, ordering |
+| `tests/integration_tests.rs` | Full CRUD cycles, toggle, undo/redo, duplicate detection, search, CLI import/export, validation rejection |
+| `tests/backup_tests.rs` | Backup create, list, restore, delete, ordering, rotation to the latest 20 |
 
 ### Test Fixtures
 
@@ -124,7 +124,7 @@ src/
   commands/
     mod.rs                 Module exports
     entry_cmds.rs          Add, toggle, update, delete entries (with validation)
-    file_cmds.rs           Import/export (JSON, CSV, hosts format)
+    file_cmds.rs           Import/export, shared load/save helpers, DNS flush warnings
     backup_cmds.rs         Create, list, restore, delete backups
 
   ui/
@@ -165,7 +165,7 @@ Entry IDs are assigned sequentially during parsing and are not persisted. They e
 
 ### Platform Trait
 
-The `Platform` trait abstracts OS differences behind a single interface. Platform detection happens once at startup via `cfg` attributes. This avoids `#[cfg]` blocks throughout the codebase.
+The `Platform` trait abstracts OS differences behind a single interface. Platform detection happens once at startup via `cfg` attributes. This avoids `#[cfg]` blocks throughout the codebase. Save and CLI import paths use the trait for hosts-file writes and best-effort DNS cache flushing after successful system-hosts writes.
 
 ## Dependencies
 

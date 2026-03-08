@@ -12,9 +12,8 @@ impl Platform for MacOsPlatform {
     }
 
     fn config_dir(&self) -> PathBuf {
-        dirs::home_dir()
+        dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("/tmp"))
-            .join(".config")
             .join("hostsbutler")
     }
 
@@ -91,9 +90,8 @@ mod tests {
 
     #[test]
     fn config_dir_uses_xdg_style_path() {
-        let expected = dirs::home_dir()
+        let expected = dirs::data_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
-            .join(".config")
             .join("hostsbutler");
 
         assert_eq!(MacOsPlatform.config_dir(), expected);

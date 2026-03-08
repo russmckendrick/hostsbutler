@@ -85,13 +85,14 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         };
 
         let dirty = if app.hosts.dirty { " [Modified]" } else { "" };
+        let readonly = if app.readonly { " [Read-only]" } else { "" };
         let entry_count = app.filtered_entry_ids.len();
         let total = app.hosts.entries().len();
 
         let line = Line::from(vec![
             Span::styled(format!(" {} ", mode_text), Theme::header()),
             Span::styled(
-                format!("  {}/{} entries{}", entry_count, total, dirty),
+                format!("  {}/{} entries{}{}", entry_count, total, dirty, readonly),
                 Theme::dim(),
             ),
         ]);

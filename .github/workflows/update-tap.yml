@@ -1,22 +1,17 @@
-name: Update Homebrew Tap
+name: 🍺 Manual Homebrew Tap Update ✨
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 jobs:
   update-tap:
+    name: 🍺 Update Homebrew Tap
     runs-on: ubuntu-latest
     steps:
-      - name: Get release version
+      - name: 🧾 Get release version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            VERSION="${{ github.event.release.tag_name }}"
-          else
-            VERSION=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
-          fi
+          VERSION=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
 
           if [ -z "${VERSION}" ] || [ "${VERSION}" = "null" ]; then
             echo "Unable to determine release version" >&2
@@ -24,23 +19,37 @@ jobs:
           fi
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Using version: ${VERSION}"
+          echo "✨ Using version: ${VERSION}"
 
-      - name: Download checksums
+      - name: 🔐 Download checksums
         run: |
           mkdir -p build
           VERSION=${{ steps.version.outputs.version }}
-          curl -L --fail -o build/hostsbutler-darwin-amd64.sha256 https://github.com/${{ github.repository }}/releases/download/${VERSION}/hostsbutler-darwin-amd64.sha256
-          curl -L --fail -o build/hostsbutler-darwin-arm64.sha256 https://github.com/${{ github.repository }}/releases/download/${VERSION}/hostsbutler-darwin-arm64.sha256
 
-      - name: Clone homebrew-tap
+          for file in hostsbutler-darwin-amd64.sha256 hostsbutler-darwin-arm64.sha256; do
+            for attempt in 1 2 3 4 5; do
+              if curl -L --fail -o "build/${file}" "https://github.com/${{ github.repository }}/releases/download/${VERSION}/${file}"; then
+                break
+              fi
+
+              if [ "${attempt}" -eq 5 ]; then
+                echo "❌ Failed to download ${file} after ${attempt} attempts" >&2
+                exit 1
+              fi
+
+              echo "⏳ ${file} not ready yet, retrying..."
+              sleep 5
+            done
+          done
+
+      - name: 📥 Clone homebrew-tap
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
 
-      - name: Update Formula
+      - name: 🪄 Update formula
         run: |
           VERSION=${{ steps.version.outputs.version }}
           AMD64_SHA=$(cut -d' ' -f1 build/hostsbutler-darwin-amd64.sha256)
@@ -84,7 +93,7 @@ jobs:
           git add Formula/hostsbutler.rb
 
           if git diff --cached --quiet; then
-            echo "Formula already up to date"
+            echo "✨ Formula already up to date"
             exit 0
           fi
 
