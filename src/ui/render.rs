@@ -46,10 +46,11 @@ pub fn render(f: &mut Frame, app: &App) {
 
 fn render_title_bar(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
     let dirty = if app.hosts.dirty { " [Modified]" } else { "" };
+    let readonly = if app.readonly { " [Read-only]" } else { "" };
     let path = app.hosts.path.display().to_string();
     let title = format!(" HostsButler v{}", env!("CARGO_PKG_VERSION"));
     let right = truncate_left(
-        &format!("{}{}", path, dirty),
+        &format!("{}{}{}", path, dirty, readonly),
         area.width.saturating_sub(title.len() as u16 + 1) as usize,
     );
 

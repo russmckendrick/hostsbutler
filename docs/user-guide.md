@@ -22,6 +22,8 @@ To browse a hosts file without writing:
 hostsbutler --file /path/to/hosts --readonly
 ```
 
+In read-only mode, HostsButler still lets you browse, search, inspect backups, and test DNS resolution, but it blocks edits, saves, backup mutations, restores, and CLI import.
+
 ### First Launch
 
 When you launch HostsButler, it reads your system hosts file and presents it in a two-panel layout:
@@ -107,7 +109,10 @@ Press `Ctrl+S` to save. Before writing, HostsButler:
 1. Creates an automatic backup of the current file
 2. Serialises the document (preserving all formatting)
 3. Writes using platform-specific privilege escalation
-4. Clears the undo history
+4. Attempts to flush the DNS cache if you wrote the real system hosts file
+5. Clears the undo history
+
+If DNS cache flushing fails, the save still succeeds and HostsButler shows a warning.
 
 The title bar shows `[Modified]` when there are unsaved changes. If you try to quit with unsaved changes, you'll be prompted to save first.
 
@@ -159,6 +164,23 @@ Results appear as a toast notification at the bottom of the screen.
 
 ## Import and Export
 
+Import is currently available from the CLI. Export remains CLI-based as well.
+
+### Importing from the CLI
+
+```sh
+# Import from JSON
+hostsbutler --file /path/to/hosts --import entries.json
+
+# Import from CSV
+hostsbutler --file /path/to/hosts --import entries.csv
+
+# Import entries from another hosts file
+hostsbutler --file /path/to/hosts --import backup.hosts
+```
+
+Imports merge entries into the target hosts file, assign new session IDs, preserve group/comment/enabled state, and then save the merged document. JSON and CSV imports are validated before insertion. Hosts imports bring in entries only, not comments or blank lines.
+
 ### Exporting from the CLI
 
 ```sh
@@ -196,6 +218,8 @@ ip,hostnames,enabled,group,comment
 192.168.1.10,dev.local api.dev.local,true,Development,dev servers
 ```
 
+CSV imports use the same columns. `hostnames` stays space-separated within a single field.
+
 ## Entry Grouping
 
 ### How Groups Work
@@ -222,7 +246,7 @@ Select a group in the left panel to filter the table. The count next to each gro
 
 ## Reloading
 
-Press `Ctrl+R` to reload the hosts file from disk. This discards any unsaved changes and re-parses the file.
+Press `Ctrl+R` to reload the current hosts file from disk. This discards any unsaved changes and re-parses the active file, including custom paths opened with `--file`.
 
 ## Help
 

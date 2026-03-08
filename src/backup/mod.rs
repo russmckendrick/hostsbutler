@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use self::store::BackupMetadata;
 
-const DEFAULT_MAX_BACKUPS: usize = 5;
+const DEFAULT_MAX_BACKUPS: usize = 20;
 
 #[derive(Debug, Error)]
 pub enum BackupError {
@@ -134,31 +134,39 @@ fn compute_checksum(content: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+#[cfg(any(target_os = "macos", test))]
+fn migrate_dir_if_needed(source: &Path, target: &Path) -> Result<(), BackupError> {
+    if source == target || target.exists() || !source.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::rename(source, target)?;
+
+    Ok(())
+}
+
 #[cfg(target_os = "macos")]
 fn migrate_legacy_backup_dir(backup_dir: &Path) -> Result<(), BackupError> {
     if backup_dir != current_macos_backup_dir().as_path() {
         return Ok(());
     }
 
-    let Some(legacy_root) = dirs::data_dir() else {
-        return Ok(());
-    };
-    let legacy_backup_dir = legacy_root.join("hostsbutler").join("backups");
-
-    if legacy_backup_dir == backup_dir || backup_dir.exists() || !legacy_backup_dir.exists() {
-        return Ok(());
-    }
-
-    if let Some(parent) = backup_dir.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::rename(legacy_backup_dir, backup_dir)?;
-
-    Ok(())
+    migrate_dir_if_needed(&legacy_macos_backup_dir(), backup_dir)
 }
 
 #[cfg(target_os = "macos")]
 fn current_macos_backup_dir() -> PathBuf {
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .join("hostsbutler")
+        .join("backups")
+}
+
+#[cfg(target_os = "macos")]
+fn legacy_macos_backup_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join(".config")
@@ -203,26 +211,36 @@ mod tests {
         assert!(backups.is_empty());
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
-    fn migrate_legacy_backup_dir_is_noop_when_target_exists() {
+    fn migrate_dir_if_needed_is_noop_when_target_exists() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let backup_dir = temp_dir.path().join("backups");
-        fs::create_dir_all(&backup_dir).unwrap();
+        let source_dir = temp_dir.path().join("legacy-backups");
+        let target_dir = temp_dir.path().join("backups");
 
-        super::migrate_legacy_backup_dir(&backup_dir).unwrap();
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::write(source_dir.join("kept.txt"), "legacy").unwrap();
+        fs::write(target_dir.join("current.txt"), "current").unwrap();
 
-        assert!(backup_dir.exists());
+        super::migrate_dir_if_needed(&source_dir, &target_dir).unwrap();
+
+        assert!(source_dir.exists());
+        assert!(target_dir.exists());
+        assert!(target_dir.join("current.txt").exists());
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
-    fn migrate_legacy_backup_dir_is_noop_for_missing_legacy_dir() {
+    fn migrate_dir_if_needed_moves_legacy_backups() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let backup_dir = temp_dir.path().join("backups");
+        let source_dir = temp_dir.path().join("legacy-backups");
+        let target_dir = temp_dir.path().join("backups");
 
-        super::migrate_legacy_backup_dir(&backup_dir).unwrap();
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::write(source_dir.join("backup.bak"), "backup").unwrap();
 
-        assert!(!backup_dir.exists());
+        super::migrate_dir_if_needed(&source_dir, &target_dir).unwrap();
+
+        assert!(!source_dir.exists());
+        assert!(target_dir.join("backup.bak").exists());
     }
 }

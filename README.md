@@ -31,9 +31,11 @@ A cross-platform TUI application for managing the system hosts file, built in Ru
 - **Group entries** with `## [GroupName]` headers for organisation
 - **Search and filter** across IP, hostname, group, and comments
 - **Automatic backups** before every save, with a backup manager for restore
+- **Automatic DNS cache flush** after successful system hosts writes (best-effort)
 - **DNS resolution testing** to verify entries match actual DNS
-- **Import/export** in JSON, CSV, and hosts file formats
+- **Import/export** in JSON, CSV, and hosts file formats from the CLI
 - **Undo/redo** for all modifications
+- **Read-only mode** for safe inspection without writes
 - **Round-trip safe** parser that preserves comments, blank lines, and formatting
 - **Cross-platform** support for macOS, Linux, and Windows
 
@@ -63,6 +65,9 @@ sudo hostsbutler
 # Open a specific hosts file
 hostsbutler --file /path/to/hosts
 
+# Import entries from JSON, CSV, or another hosts file
+hostsbutler --file /path/to/hosts --import entries.json
+
 # Export entries to JSON
 hostsbutler --export entries.json
 
@@ -78,8 +83,11 @@ hostsbutler --export backup.hosts
 | Flag | Description |
 |------|-------------|
 | `-f, --file <PATH>` | Path to hosts file (overrides platform default) |
-| `-r, --readonly` | Read-only mode |
+| `-r, --readonly` | Read-only mode; blocks edits, saves, backup mutations, and import |
+| `--import <PATH>` | Import entries from JSON, CSV, or hosts format into the target hosts file |
 | `--export <PATH>` | Export entries to file (format detected by extension: `.json`, `.csv`, or hosts) |
+
+`--import` and `--export` are mutually exclusive.
 
 ## Keyboard Shortcuts
 
@@ -171,6 +179,8 @@ Backups are stored as timestamped files with JSON metadata sidecars. A maximum o
 | Privilege escalation | `sudo` | `pkexec` / `sudo` | Run as Administrator |
 | DNS flush | `dscacheutil -flushcache` | `resolvectl flush-caches` | `ipconfig /flushdns` |
 | Line endings | LF | LF | CRLF |
+
+After a successful write to the real system hosts file, HostsButler attempts to flush the DNS cache. Flush failures are reported as warnings and do not roll back the save.
 
 ## Development
 

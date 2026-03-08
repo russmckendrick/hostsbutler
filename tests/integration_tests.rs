@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::process::Command;
 
 use hostsbutler::commands::entry_cmds;
 use hostsbutler::commands::file_cmds;
@@ -15,6 +16,18 @@ fn fixture_path(name: &str) -> PathBuf {
 fn load_fixture(name: &str) -> HostsFile {
     let content = std::fs::read_to_string(fixture_path(name)).unwrap();
     parser::parse_hosts_file(&content, fixture_path(name))
+}
+
+fn binary_command(home_root: &std::path::Path) -> Command {
+    let home = home_root.join("home");
+    let xdg = home_root.join("xdg");
+    std::fs::create_dir_all(&home).unwrap();
+    std::fs::create_dir_all(&xdg).unwrap();
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_hostsbutler"));
+    command.env("HOME", home);
+    command.env("XDG_CONFIG_HOME", xdg);
+    command
 }
 
 #[test]
@@ -199,6 +212,159 @@ fn test_export_csv() {
 
     let content = std::fs::read_to_string(&export_path).unwrap();
     assert!(content.contains("ip,hostnames,enabled,group,comment"));
+}
+
+#[test]
+fn test_cli_import_json() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let hosts_path = temp_dir.path().join("hosts");
+    let import_path = temp_dir.path().join("import.json");
+
+    std::fs::write(&hosts_path, "127.0.0.1\tlocalhost\n").unwrap();
+    std::fs::write(
+        &import_path,
+        r#"[
+  {
+    "ip": "10.0.0.10",
+    "hostnames": ["json.test"],
+    "enabled": true,
+    "group": "Imported",
+    "comment": "json import"
+  }
+]"#,
+    )
+    .unwrap();
+
+    let output = binary_command(temp_dir.path())
+        .args(["--file"])
+        .arg(&hosts_path)
+        .args(["--import"])
+        .arg(&import_path)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("Imported 1 entries"),
+        "stdout was: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    let content = std::fs::read_to_string(&hosts_path).unwrap();
+    assert!(content.contains("## [Imported]"));
+    assert!(content.contains("10.0.0.10\tjson.test # json import"));
+}
+
+#[test]
+fn test_cli_import_csv() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let hosts_path = temp_dir.path().join("hosts");
+    let import_path = temp_dir.path().join("import.csv");
+
+    std::fs::write(&hosts_path, "127.0.0.1\tlocalhost\n").unwrap();
+    std::fs::write(
+        &import_path,
+        "ip,hostnames,enabled,group,comment\n10.0.0.20,csv.test,false,Imported,csv import\n",
+    )
+    .unwrap();
+
+    let output = binary_command(temp_dir.path())
+        .args(["--file"])
+        .arg(&hosts_path)
+        .args(["--import"])
+        .arg(&import_path)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+
+    let content = std::fs::read_to_string(&hosts_path).unwrap();
+    assert!(content.contains("## [Imported]"));
+    assert!(content.contains("# 10.0.0.20\tcsv.test # csv import"));
+}
+
+#[test]
+fn test_cli_import_hosts() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let hosts_path = temp_dir.path().join("hosts");
+    let import_path = temp_dir.path().join("import.hosts");
+
+    std::fs::write(&hosts_path, "127.0.0.1\tlocalhost\n").unwrap();
+    std::fs::write(
+        &import_path,
+        "## [Imported]\n10.0.0.30\thosts.test # hosts import\n",
+    )
+    .unwrap();
+
+    let output = binary_command(temp_dir.path())
+        .args(["--file"])
+        .arg(&hosts_path)
+        .args(["--import"])
+        .arg(&import_path)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+
+    let content = std::fs::read_to_string(&hosts_path).unwrap();
+    assert!(content.contains("## [Imported]"));
+    assert!(content.contains("10.0.0.30\thosts.test # hosts import"));
+}
+
+#[test]
+fn test_cli_import_is_blocked_in_readonly_mode() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let hosts_path = temp_dir.path().join("hosts");
+    let import_path = temp_dir.path().join("import.json");
+    let original = "127.0.0.1\tlocalhost\n";
+
+    std::fs::write(&hosts_path, original).unwrap();
+    std::fs::write(
+        &import_path,
+        r#"[{"ip":"10.0.0.40","hostnames":["readonly.test"],"enabled":true,"group":null,"comment":null}]"#,
+    )
+    .unwrap();
+
+    let output = binary_command(temp_dir.path())
+        .args(["--file"])
+        .arg(&hosts_path)
+        .args(["--readonly", "--import"])
+        .arg(&import_path)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("--readonly cannot be used with --import")
+    );
+    assert_eq!(std::fs::read_to_string(&hosts_path).unwrap(), original);
+}
+
+#[test]
+fn test_cli_import_and_export_are_mutually_exclusive() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let hosts_path = temp_dir.path().join("hosts");
+    let import_path = temp_dir.path().join("import.json");
+    let export_path = temp_dir.path().join("export.json");
+
+    std::fs::write(&hosts_path, "127.0.0.1\tlocalhost\n").unwrap();
+    std::fs::write(&import_path, "[]").unwrap();
+
+    let output = binary_command(temp_dir.path())
+        .args(["--file"])
+        .arg(&hosts_path)
+        .args(["--import"])
+        .arg(&import_path)
+        .args(["--export"])
+        .arg(&export_path)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("cannot be used with")
+            || String::from_utf8_lossy(&output.stdout).contains("cannot be used with")
+    );
 }
 
 #[test]

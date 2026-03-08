@@ -9,12 +9,18 @@ pub fn serialize_hosts_file(hosts: &HostsFile) -> String {
 
 /// Serialize with Windows-style line endings.
 pub fn serialize_hosts_file_crlf(hosts: &HostsFile) -> String {
-    hosts
+    let mut content = hosts
         .lines
         .iter()
         .map(|l| l.to_line_string())
         .collect::<Vec<_>>()
-        .join("\r\n")
+        .join("\r\n");
+
+    if hosts.trailing_newline {
+        content.push_str("\r\n");
+    }
+
+    content
 }
 
 #[cfg(test)]
@@ -37,5 +43,13 @@ mod tests {
         let hosts = parse_hosts_file(content, PathBuf::from("/etc/hosts"));
         let output = serialize_hosts_file_crlf(&hosts);
         assert_eq!(output, "127.0.0.1\tlocalhost\r\n::1\tlocalhost");
+    }
+
+    #[test]
+    fn test_serialize_crlf_preserves_trailing_newline() {
+        let content = "127.0.0.1\tlocalhost\n::1\tlocalhost\n";
+        let hosts = parse_hosts_file(content, PathBuf::from("/etc/hosts"));
+        let output = serialize_hosts_file_crlf(&hosts);
+        assert_eq!(output, "127.0.0.1\tlocalhost\r\n::1\tlocalhost\r\n");
     }
 }

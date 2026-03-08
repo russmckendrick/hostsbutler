@@ -40,7 +40,7 @@ The hosts file requires Administrator access for writing.
 
 ## DNS Cache Flushing
 
-After saving changes, you may want to flush the DNS cache so changes take effect immediately. HostsButler can flush the cache automatically.
+After a successful write to the real system hosts file, HostsButler attempts to flush the DNS cache so changes take effect immediately. Flush failures are reported as warnings and do not fail the save or CLI import. Writes to custom files opened with `--file` do not trigger DNS flushing.
 
 | Platform | Command(s) |
 |----------|------------|
@@ -66,7 +66,7 @@ This is handled transparently. The internal document model always uses LF; conve
 | Linux | `~/.config/hostsbutler/` |
 | Windows | `%APPDATA%\hostsbutler\` |
 
-Backups are stored in a `backups/` subdirectory within the config directory.
+Backups are stored in a `backups/` subdirectory within the config directory. Up to 20 backups are retained.
 
 The directory is created automatically on first use.
 
