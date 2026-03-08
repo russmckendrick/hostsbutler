@@ -134,6 +134,7 @@ fn compute_checksum(content: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn migrate_dir_if_needed(source: &Path, target: &Path) -> Result<(), BackupError> {
     if source == target || target.exists() || !source.exists() {
         return Ok(());
