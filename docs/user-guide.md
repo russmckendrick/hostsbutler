@@ -4,11 +4,44 @@ A practical guide to using HostsButler for managing your system hosts file.
 
 ## Installation
 
-### Homebrew (macOS/Linux)
+### Homebrew (macOS)
+
+The recommended way to install on macOS is via Homebrew:
 
 ```sh
 brew install russmckendrick/tap/hostsbutler
 ```
+
+To upgrade to the latest version:
+
+```sh
+brew upgrade hostsbutler
+```
+
+### GitHub Releases (Linux / Windows)
+
+Pre-built binaries are available for all major platforms from the [GitHub Releases](https://github.com/russmckendrick/hostsbutler/releases) page.
+
+#### Linux
+
+Download and install using `curl`:
+
+```sh
+ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+curl -sL "https://github.com/russmckendrick/hostsbutler/releases/latest/download/hostsbutler-linux-${ARCH}" -o hostsbutler
+chmod +x hostsbutler
+sudo mv hostsbutler /usr/local/bin/
+```
+
+#### Windows
+
+Download using PowerShell:
+
+```powershell
+Invoke-WebRequest -Uri "https://github.com/russmckendrick/hostsbutler/releases/latest/download/hostsbutler-windows-amd64.exe" -OutFile "hostsbutler.exe"
+```
+
+You can then move `hostsbutler.exe` to a directory in your `PATH`, or run it directly from the download location.
 
 ### From source
 
