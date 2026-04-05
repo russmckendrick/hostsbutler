@@ -2,6 +2,28 @@
 
 A practical guide to using HostsButler for managing your system hosts file.
 
+## Installation
+
+### Homebrew (macOS/Linux)
+
+```sh
+brew install russmckendrick/tap/hostsbutler
+```
+
+### From source
+
+```sh
+cargo install --path .
+```
+
+Or clone and build:
+
+```sh
+git clone https://github.com/russmckendrick/hostsbutler.git
+cd hostsbutler
+cargo build --release
+```
+
 ## Getting Started
 
 ### Launching

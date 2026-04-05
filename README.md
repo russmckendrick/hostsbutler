@@ -4,25 +4,7 @@ A cross-platform TUI application for managing the system hosts file, built in Ru
 
 <img src="logo.svg" width="100">
 
-```
-+-------------------------------------------------------------------+
-| HostsButler v0.1.0                          /etc/hosts  [Modified] |
-+----------+--------------------------------------------------------+
-|          | Status | IP Address      | Hostname(s)       | Group   |
-| Groups   | -------+-----------------+-------------------+---------|
-| ------   |  [*]   | 127.0.0.1       | localhost          | System  |
-| > All (9)|  [*]   | ::1             | localhost          | System  |
-|   System  |  [*]   | 192.168.1.10    | db.local           | Dev     |
-|   Dev (3) |  [ ]   | 10.0.0.5        | staging.app        | Dev     |
-|   Work (2)|  [*]   | 10.0.0.6        | api.staging        | Dev     |
-|   Blocked |  [*]   | 0.0.0.0         | ads.example.com    | Blocked |
-|   (4)     |  [*]   | 0.0.0.0         | tracker.bad.com    | Blocked |
-|           |  [ ]   | 0.0.0.0         | malware.site       | Blocked |
-|           |  [*]   | 172.16.0.50     | jira.company.com   | Work    |
-+----------+--------------------------------------------------------+
-| [/] Search  [a] Add  [e] Edit  [d] Delete  [Space] Toggle  [?] Help|
-+-------------------------------------------------------------------+
-```
+![](docs/screens/001.png)
 
 ## Features
 
@@ -40,6 +22,12 @@ A cross-platform TUI application for managing the system hosts file, built in Ru
 - **Cross-platform** support for macOS, Linux, and Windows
 
 ## Installation
+
+### Homebrew (macOS/Linux)
+
+```sh
+brew install russmckendrick/tap/hostsbutler
+```
 
 ### From source
 
@@ -152,6 +140,8 @@ HostsButler recognises group headers in the hosts file using two formats:
 
 Groups appear in the left panel. Selecting a group filters the table to show only its entries. New entries can be assigned to groups and will be inserted in the correct position.
 
+![](docs/screens/003.png)
+
 ## Backups
 
 Backups are created automatically before every save. The backup manager (`b`) lets you:
@@ -162,6 +152,8 @@ Backups are created automatically before every save. The backup manager (`b`) le
 - Delete old backups
 
 Backups are stored as timestamped files with JSON metadata sidecars. A maximum of 20 backups are retained (oldest are rotated out).
+
+![](docs/screens/002.png)
 
 ### Backup locations
 
